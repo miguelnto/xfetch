@@ -1,0 +1,94 @@
+#!/bin/sh
+
+# Prints some information about the system, just like neofetch or pfetch.
+# Depends on:
+# Miguel Neto (11/2024)
+
+# Colors
+BLUE='[34m'
+BLACK='[30m'
+RED='[31m'
+MAGENTA='[35m'
+CYAN='[36m'
+GREEN='[32m'
+LIGHT_GRAY='[0;90m'
+YELLOW='[1;33m'
+WHITE='[1;37m'
+RESET='[0m'
+
+display_info(){
+d_host=$(uname -n)
+d_os=$(sed '1!d;s/NAME=//g;s/"//g' /etc/os-release)
+d_k=$(cat /proc/sys/kernel/osrelease)
+d_upt=$(uptime -p | awk '{sub("minutes","mins"); print $2,$3,$4,$5}')
+d_scren=$(xrandr | sed '1!d;s/.*current.//g;s/,.*//g;s/ //g')
+d_desk=$(xprop -id "$(xprop -root -notype | awk '$1=="_NET_SUPPORTING_WM_CHECK:"{print $5}')" -notype -f _NET_WM_NAME 8t | grep "_NET_WM_NAME = " | cut --delimiter=' ' --fields=3 | cut --delimiter='"' --fields=2)
+d_font=$(fc-match | sed 's/\..*//g')
+d_cpu=$(grep -o 'model name.*' /proc/cpuinfo | sed '1!d;s/.*:.//g;s/(.*)//g;s/CPU//')
+d_gpu=$(lspci | grep 'VGA' | sed 's/^.*:.*://g;s/(.*)//g')
+d_usedmem=$(free -m | awk '/Mem/{print $3}')"MiB"
+d_freemem=$(free -m | awk '/Mem/{print $2}')"MiB"
+d_arch=$(uname -m)
+qtd=$(echo "${USER}${d_host}" | sed 's/./\-/g')
+d_memperct=$(free -m | awk '/Mem/{print ($5+$3)/$2 * 100}')
+host_one=$(cat /sys/devices/virtual/dmi/id/product_name)
+host_two=$(cat /sys/devices/virtual/dmi/id/product_version)
+d_blocks="${BLACK}███${RED}███${GREEN}███${YELLOW}███${BLUE}███${MAGENTA}███${CYAN}███${WHITE}███${RESET}"
+}
+
+pkgs=$(
+  has() { [ -x "$(command -v "$1")" ]; }
+  {
+    has emerge     && printf '%s\n' "${EPREFIX}"/var/db/pkg/*/* # emerge portage
+    has pacman     && pacman -Q # pacman
+    has dpkg       && dpkg --list # apt dpkg
+    has rpm        && rpm -qa # rpm dnf yum
+    has apk        && apk list # apk
+    has xbps-query && xbps-query -l # xbps
+    has pkg_info   && pkg_info -mz # pkg, OpenBSD
+    has pkg        && printf '%s\n' /var/db/pkg/* # pkg, FreeBSD
+  } | wc -l
+)
+
+normal() {
+display_info
+cat <<EOF
+		   ${BLUE}${USER}${RESET}@${BLUE}${d_host}${RESET}
+                   $qtd
+      ${RED} ____        ${BLUE}OS${RESET}: $d_os
+   ${RED}___|    |___    ${BLUE}Host${RESET}: $host_one $host_two
+  ${RED}\------------/   ${BLUE}Kernel${RESET}: $d_k
+      ${LIGHT_GRAY}|${RESET}o${LIGHT_GRAY}_${RESET}o ${LIGHT_GRAY}|       ${BLUE}Uptime${RESET}: $d_upt
+      ${LIGHT_GRAY}|${YELLOW}:_/ ${LIGHT_GRAY}|       ${BLUE}Shell${RESET}: ${SHELL##*/}
+      ${LIGHT_GRAY}/${RESET} _  ${LIGHT_GRAY}\\       ${BLUE}Terminal${RESET}: ${TERM%%-*}
+     ${LIGHT_GRAY}/${RESET}/   \ ${LIGHT_GRAY}\\      ${BLUE}Resolution${RESET}: $d_scren
+    ${LIGHT_GRAY}(${RESET}|     | ${LIGHT_GRAY})     ${BLUE}DE/WM${RESET}: $d_desk
+   ${YELLOW}/'${RESET}|_   _/${YELLOW}'\\     ${BLUE}Font${RESET}: $d_font
+   ${YELLOW}\___)${RESET}=${YELLOW}(___/     ${BLUE}CPU${RESET}: $d_cpu
+                   ${BLUE}GPU${RESET}:$d_gpu
+		   ${BLUE}Memory${RESET}: $d_usedmem / $d_freemem (${d_memperct%%.*}%)
+                   ${BLUE}Architecture${RESET}: $d_arch ($(getconf LONG_BIT)-bit)
+
+		   ${d_blocks}
+EOF
+}
+
+petit() {
+display_info
+cat <<EOF
+    ${LIGHT_GRAY}___${RESET}
+   ${LIGHT_GRAY}(${RESET}.· ${LIGHT_GRAY}|     ${BLUE}os${RESET}: ${d_os}
+   ${LIGHT_GRAY}(${YELLOW}<> ${LIGHT_GRAY}|     ${BLUE}kernel${RESET}: ${d_k}
+  ${LIGHT_GRAY}/ __  ${LIGHT_GRAY}\\    ${BLUE}pkgs${RESET}: $pkgs
+ ${LIGHT_GRAY}(${RESET} |  | ${LIGHT_GRAY}/|   ${BLUE}shell${RESET}: ${SHELL##*/}
+${YELLOW}_${RESET}${LIGHT_GRAY}/\\${RESET}(__)${LIGHT_GRAY}/${YELLOW}_${LIGHT_GRAY})   ${BLUE}de/wm${RESET}: ${d_desk}
+${YELLOW}\/${LIGHT_GRAY}-____${YELLOW}\/${RESET}
+            ${d_blocks}
+EOF
+}
+
+case $1 in
+	-p) petit ;;
+	 *) normal ;;
+esac
+
